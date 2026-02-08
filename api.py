@@ -1,4 +1,4 @@
-mport uuid
+import uuid
 from typing import Annotated, Optional
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 from fastapi import Depends, FastAPI, HTTPException, Query, status
@@ -6,114 +6,86 @@ from datetime import date, datetime
 from enum import Enum
 
 # Enums para tipos específicos
-class TipoParto(str, Enum):
-    NORMAL = "Normal"
-    CESARIA = "Cesária"
+class TipoDesbloqueio(str, Enum):
+    FRP = "FRP"
+    ICLOUD = "iCloud"
+    SENHA = "Senha"
+    NETWORK = "Network"
+    OUTRO = "Outro"
 
-class EstadoCivil(str, Enum):
-    SOLTEIRO = "Solteiro"
-    CASADO = "Casado"
-    DIVORCIADO = "Divorciado"
-    VIUVO = "Viúvo"
-    UNIAO_ESTAVEL = "União Estável"
-
-class GrupoSanguineo(str, Enum):
-    A_POSITIVO = "A+"
-    A_NEGATIVO = "A-"
-    B_POSITIVO = "B+"
-    B_NEGATIVO = "B-"
-    AB_POSITIVO = "AB+"
-    AB_NEGATIVO = "AB-"
-    O_POSITIVO = "O+"
-    O_NEGATIVO = "O-"
-
-class SexoBebe(str, Enum):
-    MASCULINO = "Masculino"
-    FEMININO = "Feminino"
+class StatusDesbloqueio(str, Enum):
+    PENDENTE = "Pendente"
+    EM_PROCESSO = "Em Processo"
+    CONCLUIDO = "Concluído"
+    CANCELADO = "Cancelado"
 
 # Tabelas da base de dados
-class Gestante(SQLModel, table=True):
-    id_gestante: uuid.UUID = Field(default_factory=uuid.uuid7, primary_key=True)
-    nome: str = Field(nullable=False)
-    data_nascimento: date = Field(nullable=False)
-    bi: str = Field(index=True, unique=True, nullable=False)
-    telefone: str = Field(nullable=False)
-    endereco: str = Field(nullable=False)
-    grupo_sanguineo: GrupoSanguineo = Field(nullable=False)
-    estado_civil: EstadoCivil = Field(nullable=False)
-    data_registo: datetime = Field(default_factory=datetime.now)
+class Usuario(SQLModel, table=True):
+    id_usuario: uuid.UUID = Field(default_factory=uuid.uuid7, primary_key=True)
+    username: str = Field(index=True, unique=True, nullable=False)
+    senha_hash: str = Field(nullable=False)
+    email: Optional[str] = Field(default=None, unique=True)
+    nome_completo: Optional[str] = Field(default=None)
+    data_criacao: datetime = Field(default_factory=datetime.now)
 
-class ProfissionalSaude(SQLModel, table=True):
-    id_profissional: uuid.UUID = Field(default_factory=uuid.uuid7, primary_key=True)
+class Cliente(SQLModel, table=True):
+    id_cliente: uuid.UUID = Field(default_factory=uuid.uuid7, primary_key=True)
     nome: str = Field(nullable=False)
-    especialidade: str = Field(nullable=False)
     telefone: str = Field(nullable=False)
-    email: str = Field(index=True, unique=True, nullable=False)
+    email: str = Field(unique=True, nullable=False)
+    endereco: Optional[str] = Field(default=None)
+    data_registro: datetime = Field(default_factory=datetime.now)
 
-class ConsultaPrenatal(SQLModel, table=True):
-    id_consulta: uuid.UUID = Field(default_factory=uuid.uuid7, primary_key=True)
-    data_consulta: date = Field(nullable=False)
-    idade_gestacional: int = Field(nullable=False)  # em semanas
-    peso: float = Field(nullable=False)  # em kg
-    tensao_arterial: str = Field(nullable=False)  # Ex: "120/80"
+class Celular(SQLModel, table=True):
+    id_celular: uuid.UUID = Field(default_factory=uuid.uuid7, primary_key=True)
+    marca: str = Field(nullable=False)
+    modelo: str = Field(nullable=False)
+    imei: str = Field(nullable=False, unique=True)
+    cliente_id: uuid.UUID = Field(foreign_key="cliente.id_cliente", nullable=False)
+    data_registro: datetime = Field(default_factory=datetime.now)
+
+class Desbloqueio(SQLModel, table=True):
+    id_desbloqueio: uuid.UUID = Field(default_factory=uuid.uuid7, primary_key=True)
+    tipo_desbloqueio: TipoDesbloqueio = Field(nullable=False)
+    status: StatusDesbloqueio = Field(default=StatusDesbloqueio.PENDENTE)
+    data_entrada: date = Field(nullable=False)
+    data_saida: Optional[date] = Field(default=None)
+    descricao_problema: Optional[str] = Field(default=None)
     observacoes: Optional[str] = Field(default=None)
-    id_gestante: uuid.UUID = Field(foreign_key="gestante.id_gestante", nullable=False)
-    id_profissional: uuid.UUID = Field(foreign_key="profissionalsaude.id_profissional", nullable=False)
-
-class Exame(SQLModel, table=True):
-    id_exame: uuid.UUID = Field(default_factory=uuid.uuid7, primary_key=True)
-    tipo_exame: str = Field(nullable=False)
-    data_exame: date = Field(nullable=False)
-    resultado: Optional[str] = Field(default=None)
-    id_gestante: uuid.UUID = Field(foreign_key="gestante.id_gestante", nullable=False)
-
-class Parto(SQLModel, table=True):
-    id_parto: uuid.UUID = Field(default_factory=uuid.uuid7, primary_key=True)
-    data_parto: date = Field(nullable=False)
-    tipo_parto: TipoParto = Field(nullable=False)
-    complicacoes: Optional[str] = Field(default=None)
-    peso_bebe: float = Field(nullable=False)  # em kg
-    sexo_bebe: SexoBebe = Field(nullable=False)
-    id_gestante: uuid.UUID = Field(foreign_key="gestante.id_gestante", nullable=False, unique=True)
-    id_profissional: uuid.UUID = Field(foreign_key="profissionalsaude.id_profissional", nullable=False)
+    valor_cobrado: Optional[float] = Field(default=None)
+    celular_id: uuid.UUID = Field(foreign_key="celular.id_celular", nullable=False)
+    usuario_responsavel_id: Optional[uuid.UUID] = Field(foreign_key="usuario.id_usuario", default=None)
+    data_criacao: datetime = Field(default_factory=datetime.now)
 
 # Modelos para atualização (PATCH)
-class GestanteUpdate(SQLModel):
-    nome: Optional[str] = None
-    telefone: Optional[str] = None
-    endereco: Optional[str] = None
-    grupo_sanguineo: Optional[GrupoSanguineo] = None
-    estado_civil: Optional[EstadoCivil] = None
+class UsuarioUpdate(SQLModel):
+    username: Optional[str] = None
+    email: Optional[str] = None
+    nome_completo: Optional[str] = None
 
-class ProfissionalSaudeUpdate(SQLModel):
+class ClienteUpdate(SQLModel):
     nome: Optional[str] = None
-    especialidade: Optional[str] = None
     telefone: Optional[str] = None
     email: Optional[str] = None
+    endereco: Optional[str] = None
 
-class ConsultaPrenatalUpdate(SQLModel):
-    data_consulta: Optional[date] = None
-    idade_gestacional: Optional[int] = None
-    peso: Optional[float] = None
-    tensao_arterial: Optional[str] = None
+class CelularUpdate(SQLModel):
+    marca: Optional[str] = None
+    modelo: Optional[str] = None
+    imei: Optional[str] = None
+    cliente_id: Optional[uuid.UUID] = None
+
+class DesbloqueioUpdate(SQLModel):
+    tipo_desbloqueio: Optional[TipoDesbloqueio] = None
+    status: Optional[StatusDesbloqueio] = None
+    data_saida: Optional[date] = None
+    descricao_problema: Optional[str] = None
     observacoes: Optional[str] = None
-    id_profissional: Optional[uuid.UUID] = None
-
-class ExameUpdate(SQLModel):
-    tipo_exame: Optional[str] = None
-    data_exame: Optional[date] = None
-    resultado: Optional[str] = None
-
-class PartoUpdate(SQLModel):
-    data_parto: Optional[date] = None
-    tipo_parto: Optional[TipoParto] = None
-    complicacoes: Optional[str] = None
-    peso_bebe: Optional[float] = None
-    sexo_bebe: Optional[SexoBebe] = None
-    id_profissional: Optional[uuid.UUID] = None
+    valor_cobrado: Optional[float] = None
+    usuario_responsavel_id: Optional[uuid.UUID] = None
 
 ##### CONFIGURACAO DA BASE DE DADOS ####
-db_file = "maternidade.db"
+db_file = "celulares.db"
 url = f"sqlite:///{db_file}"
 engine = create_engine(url, connect_args={"check_same_thread": False})
 
@@ -124,988 +96,781 @@ def get_session():
     with Session(engine) as session:
         yield session
 
-# CORREÇÃO: Definir DBSession corretamente
 DBSession = Annotated[Session, Depends(get_session)]
-
-app = FastAPI(title="API de Gestão de Maternidade", 
-              description="API para gerenciamento de dados de gestantes, consultas, exames e partos",
+app = FastAPI(title="API de Desbloqueio de Celulares",
+              description="API para gerenciamento de clientes, celulares e serviços de desbloqueio",
               version="1.0.0")
 
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
 
-#### GESTANTE APIENDPOINTS ###
-@app.post("/gestantes", response_model=Gestante, status_code=status.HTTP_201_CREATED)
-def criar_gestante(gestante: Gestante, session: DBSession):
-    """Cria uma nova gestante no sistema."""
-    # Verificar se BI já existe
+#### USUARIO APIENDPOINTS ###
+@app.post("/usuarios", response_model=Usuario, status_code=status.HTTP_201_CREATED)
+def criar_usuario(usuario: Usuario, session: DBSession):
+    """Cria um novo usuário no sistema."""
+    # Verificar se username já existe
     existing = session.exec(
-        select(Gestante).where(Gestante.bi == gestante.bi)
+        select(Usuario).where(Usuario.username == usuario.username)
     ).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="BI já cadastrado para outra gestante"
+            detail="Username já cadastrado"
         )
     
-    session.add(gestante)
+    # Verificar se email já existe (se fornecido)
+    if usuario.email:
+        existing_email = session.exec(
+            select(Usuario).where(Usuario.email == usuario.email)
+        ).first()
+        if existing_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email já cadastrado"
+            )
+    
+    session.add(usuario)
     session.commit()
-    session.refresh(gestante)
-    return gestante
+    session.refresh(usuario)
+    return usuario
 
-@app.get("/gestantes", response_model=list[Gestante])
-def listar_gestantes(
+@app.get("/usuarios", response_model=list[Usuario])
+def listar_usuarios(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
     session: DBSession
 ):
-    """Lista todas as gestantes com paginação."""
+    """Lista todos os usuários do sistema."""
     return session.exec(
-        select(Gestante).offset(skip).limit(limit)
+        select(Usuario).offset(skip).limit(limit)
     ).all()
 
-@app.get("/gestantes/{gestante_id}", response_model=Gestante)
-def buscar_gestante(gestante_id: uuid.UUID, session: DBSession):
-    """Busca uma gestante pelo ID."""
-    gestante = session.get(Gestante, gestante_id)
-    if not gestante:
+@app.get("/usuarios/{usuario_id}", response_model=Usuario)
+def buscar_usuario(usuario_id: uuid.UUID, session: DBSession):
+    """Busca um usuário pelo ID."""
+    usuario = session.get(Usuario, usuario_id)
+    if not usuario:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gestante não encontrada"
+            detail="Usuário não encontrado"
         )
-    return gestante
+    return usuario
 
-@app.get("/gestantes/bi/{bi}", response_model=Gestante)
-def buscar_gestante_por_bi(bi: str, session: DBSession):
-    """Busca uma gestante pelo número do BI."""
-    gestante = session.exec(
-        select(Gestante).where(Gestante.bi == bi)
+@app.get("/usuarios/username/{username}", response_model=Usuario)
+def buscar_usuario_por_username(username: str, session: DBSession):
+    """Busca um usuário pelo username."""
+    usuario = session.exec(
+        select(Usuario).where(Usuario.username == username)
     ).first()
-    if not gestante:
+    if not usuario:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gestante não encontrada"
+            detail="Usuário não encontrado"
         )
-    return gestante
+    return usuario
 
-@app.patch("/gestantes/{gestante_id}", response_model=Gestante)
-def atualizar_gestante(
-    gestante_id: uuid.UUID, 
-    dados: GestanteUpdate, 
+@app.patch("/usuarios/{usuario_id}", response_model=Usuario)
+def atualizar_usuario(
+    usuario_id: uuid.UUID,
+    dados: UsuarioUpdate,
     session: DBSession
 ):
-    """Atualiza parcialmente os dados de uma gestante."""
-    gestante = session.get(Gestante, gestante_id)
-    if not gestante:
+    """Atualiza parcialmente os dados de um usuário."""
+    usuario = session.get(Usuario, usuario_id)
+    if not usuario:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gestante não encontrada"
+            detail="Usuário não encontrado"
         )
     
-    # Atualizar apenas os campos fornecidos
-    update_data = dados.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(gestante, key, value)
-    
-    session.add(gestante)
-    session.commit()
-    session.refresh(gestante)
-    return gestante
-
-@app.delete("/gestantes/{gestante_id}")
-def deletar_gestante(gestante_id: uuid.UUID, session: DBSession):
-    """Remove uma gestante do sistema."""
-    gestante = session.get(Gestante, gestante_id)
-    if not gestante:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gestante não encontrada"
-        )
-    
-    # Verificar se existem registros dependentes
-    consultas = session.exec(
-        select(ConsultaPrenatal).where(ConsultaPrenatal.id_gestante == gestante_id)
-    ).first()
-    
-    if consultas:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Não é possível excluir gestante com consultas registradas"
-        )
-    
-    session.delete(gestante)
-    session.commit()
-    return {"mensagem": "Gestante removida com sucesso"}
-
-#### PROFISSIONAL_SAUDE APIENDPOINTS ###
-@app.post("/profissionais", response_model=ProfissionalSaude, status_code=status.HTTP_201_CREATED)
-def criar_profissional(profissional: ProfissionalSaude, session: DBSession):
-    """Cria um novo profissional de saúde."""
-    # Verificar se email já existe
-    existing = session.exec(
-        select(ProfissionalSaude).where(ProfissionalSaude.email == profissional.email)
-    ).first()
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email já cadastrado para outro profissional"
-        )
-    
-    session.add(profissional)
-    session.commit()
-    session.refresh(profissional)
-    return profissional
-
-@app.get("/profissionais", response_model=list[ProfissionalSaude])
-def listar_profissionais(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
-    especialidade: Optional[str] = None,
-    session: DBSession
-):
-    """Lista profissionais de saúde, com filtro opcional por especialidade."""
-    query = select(ProfissionalSaude)
-    if especialidade:
-        query = query.where(ProfissionalSaude.especialidade == especialidade)
-    
-    return session.exec(query.offset(skip).limit(limit)).all()
-
-@app.get("/profissionais/{profissional_id}", response_model=ProfissionalSaude)
-def buscar_profissional(profissional_id: uuid.UUID, session: DBSession):
-    """Busca um profissional de saúde pelo ID."""
-    profissional = session.get(ProfissionalSaude, profissional_id)
-    if not profissional:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profissional de saúde não encontrado"
-        )
-    return profissional
-
-@app.patch("/profissionais/{profissional_id}", response_model=ProfissionalSaude)
-def atualizar_profissional(
-    profissional_id: uuid.UUID, 
-    dados: ProfissionalSaudeUpdate, 
-    session: DBSession
-):
-    """Atualiza parcialmente os dados de um profissional de saúde."""
-    profissional = session.get(ProfissionalSaude, profissional_id)
-    if not profissional:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profissional de saúde não encontrado"
-        )
-    
-    # Verificar se novo email já existe (se estiver sendo atualizado)
-    if dados.email and dados.email != profissional.email:
+    # Verificar se novo username já existe
+    if dados.username and dados.username != usuario.username:
         existing = session.exec(
-            select(ProfissionalSaude).where(ProfissionalSaude.email == dados.email)
+            select(Usuario).where(Usuario.username == dados.username)
         ).first()
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email já cadastrado para outro profissional"
+                detail="Username já cadastrado para outro usuário"
+            )
+    
+    # Verificar se novo email já existe
+    if dados.email and dados.email != usuario.email:
+        existing_email = session.exec(
+            select(Usuario).where(Usuario.email == dados.email)
+        ).first()
+        if existing_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email já cadastrado para outro usuário"
             )
     
     update_data = dados.model_dump(exclude_unset=True)
     for key, value in update_data.items():
-        setattr(profissional, key, value)
+        setattr(usuario, key, value)
     
-    session.add(profissional)
+    session.add(usuario)
     session.commit()
-    session.refresh(profissional)
-    return profissional
+    session.refresh(usuario)
+    return usuario
 
-@app.delete("/profissionais/{profissional_id}")
-def deletar_profissional(profissional_id: uuid.UUID, session: DBSession):
-    """Remove um profissional de saúde do sistema."""
-    profissional = session.get(ProfissionalSaude, profissional_id)
-    if not profissional:
+@app.delete("/usuarios/{usuario_id}")
+def deletar_usuario(usuario_id: uuid.UUID, session: DBSession):
+    """Remove um usuário do sistema."""
+    usuario = session.get(Usuario, usuario_id)
+    if not usuario:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profissional de saúde não encontrado"
+            detail="Usuário não encontrado"
         )
     
-    # Verificar se existem consultas ou partos associados
-    consultas = session.exec(
-        select(ConsultaPrenatal).where(ConsultaPrenatal.id_profissional == profissional_id)
+    # Verificar se usuário tem desbloqueios associados
+    desbloqueios = session.exec(
+        select(Desbloqueio).where(Desbloqueio.usuario_responsavel_id == usuario_id)
     ).first()
     
-    partos = session.exec(
-        select(Parto).where(Parto.id_profissional == profissional_id)
-    ).first()
-    
-    if consultas or partos:
+    if desbloqueios:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Não é possível excluir profissional com consultas ou partos registrados"
+            detail="Não é possível excluir usuário com desbloqueios associados"
         )
     
-    session.delete(profissional)
+    session.delete(usuario)
     session.commit()
-    return {"mensagem": "Profissional de saúde removido com sucesso"}
+    return {"mensagem": "Usuário removido com sucesso"}
 
-#### CONSULTA_PRENATAL APIENDPOINTS ###
-@app.post("/consultas", response_model=ConsultaPrenatal, status_code=status.HTTP_201_CREATED)
-def criar_consulta(consulta: ConsultaPrenatal, session: DBSession):
-    """Registra uma nova consulta pré-natal."""
-    # Verificar se gestante existe
-    gestante = session.get(Gestante, consulta.id_gestante)
-    if not gestante:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gestante não encontrada"
-        )
-    
-    # Verificar se profissional existe
-    profissional = session.get(ProfissionalSaude, consulta.id_profissional)
-    if not profissional:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profissional de saúde não encontrado"
-        )
-    
-    session.add(consulta)
-    session.commit()
-    session.refresh(consulta)
-    return consulta
-
-@app.get("/consultas", response_model=list[ConsultaPrenatal])
-def listar_consultas(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
-    gestante_id: Optional[uuid.UUID] = None,
-    profissional_id: Optional[uuid.UUID] = None,
-    session: DBSession
-):
-    """Lista consultas pré-natais com filtros opcionais."""
-    query = select(ConsultaPrenatal)
-    
-    if gestante_id:
-        query = query.where(ConsultaPrenatal.id_gestante == gestante_id)
-    
-    if profissional_id:
-        query = query.where(ConsultaPrenatal.id_profissional == profissional_id)
-    
-    return session.exec(query.offset(skip).limit(limit)).all()
-
-@app.get("/consultas/{consulta_id}", response_model=ConsultaPrenatal)
-def buscar_consulta(consulta_id: uuid.UUID, session: DBSession):
-    """Busca uma consulta pré-natal pelo ID."""
-    consulta = session.get(ConsultaPrenatal, consulta_id)
-    if not consulta:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Consulta pré-natal não encontrada"
-        )
-    return consulta
-
-@app.get("/gestantes/{gestante_id}/consultas", response_model=list[ConsultaPrenatal])
-def consultas_por_gestante(
-    gestante_id: uuid.UUID,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
-    session: DBSession
-):
-    """Lista todas as consultas pré-natais de uma gestante específica."""
-    # Verificar se gestante existe
-    gestante = session.get(Gestante, gestante_id)
-    if not gestante:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gestante não encontrada"
-        )
-    
-    return session.exec(
-        select(ConsultaPrenatal)
-        .where(ConsultaPrenatal.id_gestante == gestante_id)
-        .offset(skip)
-        .limit(limit)
-    ).all()
-
-@app.patch("/consultas/{consulta_id}", response_model=ConsultaPrenatal)
-def atualizar_consulta(
-    consulta_id: uuid.UUID, 
-    dados: ConsultaPrenatalUpdate, 
-    session: DBSession
-):
-    """Atualiza parcialmente os dados de uma consulta pré-natal."""
-    consulta = session.get(ConsultaPrenatal, consulta_id)
-    if not consulta:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Consulta pré-natal não encontrada"
-        )
-    
-    # Verificar se novo profissional existe (se estiver sendo atualizado)
-    if dados.id_profissional:
-        profissional = session.get(ProfissionalSaude, dados.id_profissional)
-        if not profissional:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Profissional de saúde não encontrado"
-            )
-    
-    update_data = dados.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(consulta, key, value)
-    
-    session.add(consulta)
-    session.commit()
-    session.refresh(consulta)
-    return consulta
-
-@app.delete("/consultas/{consulta_id}")
-def deletar_consulta(consulta_id: uuid.UUID, session: DBSession):
-    """Remove uma consulta pré-natal do sistema."""
-    consulta = session.get(ConsultaPrenatal, consulta_id)
-    if not consulta:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Consulta pré-natal não encontrada"
-        )
-    
-    session.delete(consulta)
-    session.commit()
-    return {"mensagem": "Consulta pré-natal removida com sucesso"}
-
-#### EXAME APIENDPOINTS ###
-@app.post("/exames", response_model=Exame, status_code=status.HTTP_201_CREATED)
-def criar_exame(exame: Exame, session: DBSession):
-    """Registra um novo exame realizado por uma gestante."""
-    # Verificar se gestante existe
-    gestante = session.get(Gestante, exame.id_gestante)
-    if not gestante:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gestante não encontrada"
-        )
-    
-    session.add(exame)
-    session.commit()
-    session.refresh(exame)
-    return exame
-
-@app.get("/exames", response_model=list[Exame])
-def listar_exames(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
-    gestante_id: Optional[uuid.UUID] = None,
-    tipo_exame: Optional[str] = None,
-    session: DBSession
-):
-    """Lista exames com filtros opcionais."""
-    query = select(Exame)
-    
-    if gestante_id:
-        query = query.where(Exame.id_gestante == gestante_id)
-    
-    if tipo_exame:
-        query = query.where(Exame.tipo_exame == tipo_exame)
-    
-    return session.exec(query.offset(skip).limit(limit)).all()
-
-@app.get("/exames/{exame_id}", response_model=Exame)
-def buscar_exame(exame_id: uuid.UUID, session: DBSession):
-    """Busca um exame pelo ID."""
-    exame = session.get(Exame, exame_id)
-    if not exame:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Exame não encontrado"
-        )
-    return exame
-
-@app.get("/gestantes/{gestante_id}/exames", response_model=list[Exame])
-def exames_por_gestante(
-    gestante_id: uuid.UUID,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
-    session: DBSession
-):
-    """Lista todos os exames de uma gestante específica."""
-    # Verificar se gestante existe
-    gestante = session.get(Gestante, gestante_id)
-    if not gestante:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gestante não encontrada"
-        )
-    
-    return session.exec(
-        select(Exame)
-        .where(Exame.id_gestante == gestante_id)
-        .offset(skip)
-        .limit(limit)
-    ).all()
-
-@app.patch("/exames/{exame_id}", response_model=Exame)
-def atualizar_exame(
-    exame_id: uuid.UUID, 
-    dados: ExameUpdate, 
-    session: DBSession
-):
-    """Atualiza parcialmente os dados de um exame."""
-    exame = session.get(Exame, exame_id)
-    if not exame:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Exame não encontrado"
-        )
-    
-    update_data = dados.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(exame, key, value)
-    
-    session.add(exame)
-    session.commit()
-    session.refresh(exame)
-    return exame
-
-@app.delete("/exames/{exame_id}")
-def deletar_exame(exame_id: uuid.UUID, session: DBSession):
-    """Remove um exame do sistema."""
-    exame = session.get(Exame, exame_id)
-    if not exame:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Exame não encontrado"
-        )
-    
-    session.delete(exame)
-    session.commit()
-    return {"mensagem": "Exame removido com sucesso"}
-
-#### PARTO APIENDPOINTS ###
-@app.post("/partos", response_model=Parto, status_code=status.HTTP_201_CREATED)
-def criar_parto(parto: Parto, session: DBSession):
-    """Registrar um novo parto."""
-    # Verificar se gestante existe
-    gestante = session.get(Gestante, parto.id_gestante)
-    if not gestante:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gestante não encontrada"
-        )
-    
-    # Verificar se gestante já tem parto registrado
-    existing_parto = session.exec(
-        select(Parto).where(Parto.id_gestante == parto.id_gestante)
+#### CLIENTE APIENDPOINTS ###
+@app.post("/clientes", response_model=Cliente, status_code=status.HTTP_201_CREATED)
+def criar_cliente(cliente: Cliente, session: DBSession):
+    """Cria um novo cliente."""
+    # Verificar se email já existe
+    existing = session.exec(
+        select(Cliente).where(Cliente.email == cliente.email)
     ).first()
-    if existing_parto:
+    if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Gestante já tem um parto registrado"
+            detail="Email já cadastrado para outro cliente"
         )
     
-    # Verificar se profissional existe
-    profissional = session.get(ProfissionalSaude, parto.id_profissional)
-    if not profissional:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profissional de saúde não encontrado"
-        )
-    
-    session.add(parto)
+    session.add(cliente)
     session.commit()
-    session.refresh(parto)
-    return parto
+    session.refresh(cliente)
+    return cliente
 
-@app.get("/partos", response_model=list[Parto])
-def listar_partos(
+@app.get("/clientes", response_model=list[Cliente])
+def listar_clientes(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
-    tipo_parto: Optional[TipoParto] = None,
     session: DBSession
 ):
-    """Lista partos com filtro opcional por tipo de parto."""
-    query = select(Parto)
-    
-    if tipo_parto:
-        query = query.where(Parto.tipo_parto == tipo_parto)
-    
-    return session.exec(query.offset(skip).limit(limit)).all()
+    """Lista todos os clientes."""
+    return session.exec(
+        select(Cliente).offset(skip).limit(limit)
+    ).all()
 
-@app.get("/partos/{parto_id}", response_model=Parto)
-def buscar_parto(parto_id: uuid.UUID, session: DBSession):
-    """Busca um parto pelo ID."""
-    parto = session.get(Parto, parto_id)
-    if not parto:
+@app.get("/clientes/{cliente_id}", response_model=Cliente)
+def buscar_cliente(cliente_id: uuid.UUID, session: DBSession):
+    """Busca um cliente pelo ID."""
+    cliente = session.get(Cliente, cliente_id)
+    if not cliente:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Parto não encontrado"
+            detail="Cliente não encontrado"
         )
-    return parto
+    return cliente
 
-@app.get("/gestantes/{gestante_id}/parto", response_model=Parto)
-def parto_por_gestante(gestante_id: uuid.UUID, session: DBSession):
-    """Busca o parto de uma gestante específica."""
-    parto = session.exec(
-        select(Parto).where(Parto.id_gestante == gestante_id)
+@app.get("/clientes/email/{email}", response_model=Cliente)
+def buscar_cliente_por_email(email: str, session: DBSession):
+    """Busca um cliente pelo email."""
+    cliente = session.exec(
+        select(Cliente).where(Cliente.email == email)
     ).first()
-    
-    if not parto:
+    if not cliente:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gestante não tem parto registrado"
+            detail="Cliente não encontrado"
         )
-    
-    return parto
+    return cliente
 
-@app.patch("/partos/{parto_id}", response_model=Parto)
-def atualizar_parto(
-    parto_id: uuid.UUID, 
-    dados: PartoUpdate, 
+@app.patch("/clientes/{cliente_id}", response_model=Cliente)
+def atualizar_cliente(
+    cliente_id: uuid.UUID,
+    dados: ClienteUpdate,
     session: DBSession
 ):
-    """Atualiza parcialmente os dados de um parto."""
-    parto = session.get(Parto, parto_id)
-    if not parto:
+    """Atualiza parcialmente os dados de um cliente."""
+    cliente = session.get(Cliente, cliente_id)
+    if not cliente:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Parto não encontrado"
+            detail="Cliente não encontrado"
         )
     
-    # Verificar se novo profissional existe (se estiver sendo atualizado)
-    if dados.id_profissional:
-        profissional = session.get(ProfissionalSaude, dados.id_profissional)
-        if not profissional:
+    # Verificar se novo email já existe
+    if dados.email and dados.email != cliente.email:
+        existing = session.exec(
+            select(Cliente).where(Cliente.email == dados.email)
+        ).first()
+        if existing:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Profissional de saúde não encontrado"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email já cadastrado para outro cliente"
             )
     
     update_data = dados.model_dump(exclude_unset=True)
     for key, value in update_data.items():
-        setattr(parto, key, value)
+        setattr(cliente, key, value)
     
-    session.add(parto)
+    session.add(cliente)
     session.commit()
-    session.refresh(parto)
-    return parto
+    session.refresh(cliente)
+    return cliente
 
-@app.delete("/partos/{parto_id}")
-def deletar_parto(parto_id: uuid.UUID, session: DBSession):
-    """Remove um parto do sistema."""
-    parto = session.get(Parto, parto_id)
-    if not parto:
+@app.delete("/clientes/{cliente_id}")
+def deletar_cliente(cliente_id: uuid.UUID, session: DBSession):
+    """Remove um cliente do sistema."""
+    cliente = session.get(Cliente, cliente_id)
+    if not cliente:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Parto não encontrado"
+            detail="Cliente não encontrado"
         )
     
-    session.delete(parto)
+    # Verificar se cliente tem celulares associados
+    celulares = session.exec(
+        select(Celular).where(Celular.cliente_id == cliente_id)
+    ).first()
+    
+    if celulares:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Não é possível excluir cliente com celulares registrados"
+        )
+    
+    session.delete(cliente)
     session.commit()
-    return {"mensagem": "Parto removido com sucesso"}
+    return {"mensagem": "Cliente removido com sucesso"}
 
-#### ENDPOINTS ADICIONAIS PARA FILTROS ####
-@app.get("/profissionais/especialidade/{especialidade}", response_model=list[ProfissionalSaude])
-def profissionais_por_especialidade(
-    especialidade: str,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
-    session: DBSession
-):
-    """Lista profissionais por especialidade."""
-    return session.exec(
-        select(ProfissionalSaude)
-        .where(ProfissionalSaude.especialidade == especialidade)
-        .offset(skip)
-        .limit(limit)
-    ).all()
-
-@app.get("/consultas/profissional/{profissional_id}", response_model=list[ConsultaPrenatal])
-def consultas_por_profissional(
-    profissional_id: uuid.UUID,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
-    session: DBSession
-):
-    """Lista consultas realizadas por um profissional específico."""
-    profissional = session.get(ProfissionalSaude, profissional_id)
-    if not profissional:
+#### CELULAR APIENDPOINTS ###
+@app.post("/celulares", response_model=Celular, status_code=status.HTTP_201_CREATED)
+def criar_celular(celular: Celular, session: DBSession):
+    """Registra um novo celular."""
+    # Verificar se IMEI já existe
+    existing = session.exec(
+        select(Celular).where(Celular.imei == celular.imei)
+    ).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="IMEI já cadastrado para outro celular"
+        )
+    
+    # Verificar se cliente existe
+    cliente = session.get(Cliente, celular.cliente_id)
+    if not cliente:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profissional de saúde não encontrado"
+            detail="Cliente não encontrado"
+        )
+    
+    session.add(celular)
+    session.commit()
+    session.refresh(celular)
+    return celular
+
+@app.get("/celulares", response_model=list[Celular])
+def listar_celulares(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    cliente_id: Optional[uuid.UUID] = None,
+    marca: Optional[str] = None,
+    session: DBSession
+):
+    """Lista celulares com filtros opcionais."""
+    query = select(Celular)
+    
+    if cliente_id:
+        query = query.where(Celular.cliente_id == cliente_id)
+    
+    if marca:
+        query = query.where(Celular.marca == marca)
+    
+    return session.exec(query.offset(skip).limit(limit)).all()
+
+@app.get("/celulares/{celular_id}", response_model=Celular)
+def buscar_celular(celular_id: uuid.UUID, session: DBSession):
+    """Busca um celular pelo ID."""
+    celular = session.get(Celular, celular_id)
+    if not celular:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Celular não encontrado"
+        )
+    return celular
+
+@app.get("/celulares/imei/{imei}", response_model=Celular)
+def buscar_celular_por_imei(imei: str, session: DBSession):
+    """Busca um celular pelo IMEI."""
+    celular = session.exec(
+        select(Celular).where(Celular.imei == imei)
+    ).first()
+    if not celular:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Celular não encontrado"
+        )
+    return celular
+
+@app.get("/clientes/{cliente_id}/celulares", response_model=list[Celular])
+def celulares_por_cliente(
+    cliente_id: uuid.UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    session: DBSession
+):
+    """Lista todos os celulares de um cliente específico."""
+    cliente = session.get(Cliente, cliente_id)
+    if not cliente:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cliente não encontrado"
         )
     
     return session.exec(
-        select(ConsultaPrenatal)
-        .where(ConsultaPrenatal.id_profissional == profissional_id)
+        select(Celular)
+        .where(Celular.cliente_id == cliente_id)
         .offset(skip)
         .limit(limit)
     ).all()
 
-@app.get("/partos/profissional/{profissional_id}", response_model=list[Parto])
-def partos_por_profissional(
-    profissional_id: uuid.UUID,
+@app.patch("/celulares/{celular_id}", response_model=Celular)
+def atualizar_celular(
+    celular_id: uuid.UUID,
+    dados: CelularUpdate,
+    session: DBSession
+):
+    """Atualiza parcialmente os dados de um celular."""
+    celular = session.get(Celular, celular_id)
+    if not celular:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Celular não encontrado"
+        )
+    
+    # Verificar se novo IMEI já existe
+    if dados.imei and dados.imei != celular.imei:
+        existing = session.exec(
+            select(Celular).where(Celular.imei == dados.imei)
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="IMEI já cadastrado para outro celular"
+            )
+    
+    # Verificar se novo cliente existe (se estiver sendo atualizado)
+    if dados.cliente_id and dados.cliente_id != celular.cliente_id:
+        cliente = session.get(Cliente, dados.cliente_id)
+        if not cliente:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Cliente não encontrado"
+            )
+    
+    update_data = dados.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(celular, key, value)
+    
+    session.add(celular)
+    session.commit()
+    session.refresh(celular)
+    return celular
+
+@app.delete("/celulares/{celular_id}")
+def deletar_celular(celular_id: uuid.UUID, session: DBSession):
+    """Remove um celular do sistema."""
+    celular = session.get(Celular, celular_id)
+    if not celular:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Celular não encontrado"
+        )
+    
+    # Verificar se celular tem desbloqueios associados
+    desbloqueios = session.exec(
+        select(Desbloqueio).where(Desbloqueio.celular_id == celular_id)
+    ).first()
+    
+    if desbloqueios:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Não é possível excluir celular com desbloqueios registrados"
+        )
+    
+    session.delete(celular)
+    session.commit()
+    return {"mensagem": "Celular removido com sucesso"}
+
+#### DESBLOQUEIO APIENDPOINTS ###
+@app.post("/desbloqueios", response_model=Desbloqueio, status_code=status.HTTP_201_CREATED)
+def criar_desbloqueio(desbloqueio: Desbloqueio, session: DBSession):
+    """Registra um novo serviço de desbloqueio."""
+    # Verificar se celular existe
+    celular = session.get(Celular, desbloqueio.celular_id)
+    if not celular:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Celular não encontrado"
+        )
+    
+    # Verificar se usuário responsável existe (se fornecido)
+    if desbloqueio.usuario_responsavel_id:
+        usuario = session.get(Usuario, desbloqueio.usuario_responsavel_id)
+        if not usuario:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Usuário responsável não encontrado"
+            )
+    
+    session.add(desbloqueio)
+    session.commit()
+    session.refresh(desbloqueio)
+    return desbloqueio
+
+@app.get("/desbloqueios", response_model=list[Desbloqueio])
+def listar_desbloqueios(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    status: Optional[StatusDesbloqueio] = None,
+    tipo_desbloqueio: Optional[TipoDesbloqueio] = None,
+    celular_id: Optional[uuid.UUID] = None,
+    session: DBSession
+):
+    """Lista serviços de desbloqueio com filtros opcionais."""
+    query = select(Desbloqueio)
+    
+    if status:
+        query = query.where(Desbloqueio.status == status)
+    
+    if tipo_desbloqueio:
+        query = query.where(Desbloqueio.tipo_desbloqueio == tipo_desbloqueio)
+    
+    if celular_id:
+        query = query.where(Desbloqueio.celular_id == celular_id)
+    
+    return session.exec(query.offset(skip).limit(limit)).all()
+
+@app.get("/desbloqueios/{desbloqueio_id}", response_model=Desbloqueio)
+def buscar_desbloqueio(desbloqueio_id: uuid.UUID, session: DBSession):
+    """Busca um serviço de desbloqueio pelo ID."""
+    desbloqueio = session.get(Desbloqueio, desbloqueio_id)
+    if not desbloqueio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Desbloqueio não encontrado"
+        )
+    return desbloqueio
+
+@app.get("/celulares/{celular_id}/desbloqueios", response_model=list[Desbloqueio])
+def desbloqueios_por_celular(
+    celular_id: uuid.UUID,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
     session: DBSession
 ):
-    """Lista partos realizados por um profissional específico."""
-    profissional = session.get(ProfissionalSaude, profissional_id)
-    if not profissional:
+    """Lista todos os desbloqueios de um celular específico."""
+    celular = session.get(Celular, celular_id)
+    if not celular:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profissional de saúde não encontrado"
+            detail="Celular não encontrado"
         )
     
     return session.exec(
-        select(Parto)
-        .where(Parto.id_profissional == profissional_id)
+        select(Desbloqueio)
+        .where(Desbloqueio.celular_id == celular_id)
         .offset(skip)
         .limit(limit)
     ).all()
 
-@app.get("/consultas/periodo")
-def consultas_por_periodo(
+@app.get("/desbloqueios/status/{status}", response_model=list[Desbloqueio])
+def desbloqueios_por_status(
+    status: StatusDesbloqueio,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    session: DBSession
+):
+    """Lista desbloqueios por status."""
+    return session.exec(
+        select(Desbloqueio)
+        .where(Desbloqueio.status == status)
+        .offset(skip)
+        .limit(limit)
+    ).all()
+
+@app.get("/desbloqueios/tipo/{tipo}", response_model=list[Desbloqueio])
+def desbloqueios_por_tipo(
+    tipo: TipoDesbloqueio,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    session: DBSession
+):
+    """Lista desbloqueios por tipo."""
+    return session.exec(
+        select(Desbloqueio)
+        .where(Desbloqueio.tipo_desbloqueio == tipo)
+        .offset(skip)
+        .limit(limit)
+    ).all()
+
+@app.patch("/desbloqueios/{desbloqueio_id}", response_model=Desbloqueio)
+def atualizar_desbloqueio(
+    desbloqueio_id: uuid.UUID,
+    dados: DesbloqueioUpdate,
+    session: DBSession
+):
+    """Atualiza parcialmente os dados de um serviço de desbloqueio."""
+    desbloqueio = session.get(Desbloqueio, desbloqueio_id)
+    if not desbloqueio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Desbloqueio não encontrado"
+        )
+    
+    # Verificar se novo usuário responsável existe (se estiver sendo atualizado)
+    if dados.usuario_responsavel_id:
+        usuario = session.get(Usuario, dados.usuario_responsavel_id)
+        if not usuario:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Usuário responsável não encontrado"
+            )
+    
+    update_data = dados.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(desbloqueio, key, value)
+    
+    session.add(desbloqueio)
+    session.commit()
+    session.refresh(desbloqueio)
+    return desbloqueio
+
+@app.delete("/desbloqueios/{desbloqueio_id}")
+def deletar_desbloqueio(desbloqueio_id: uuid.UUID, session: DBSession):
+    """Remove um serviço de desbloqueio do sistema."""
+    desbloqueio = session.get(Desbloqueio, desbloqueio_id)
+    if not desbloqueio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Desbloqueio não encontrado"
+        )
+    
+    session.delete(desbloqueio)
+    session.commit()
+    return {"mensagem": "Desbloqueio removido com sucesso"}
+
+#### ENDPOINTS DE RELATÓRIOS ####
+@app.get("/relatorios/desbloqueios-pendentes")
+def desbloqueios_pendentes(session: DBSession):
+    """Lista todos os desbloqueios com status pendente."""
+    desbloqueios = session.exec(
+        select(Desbloqueio)
+        .where(Desbloqueio.status == StatusDesbloqueio.PENDENTE)
+    ).all()
+    
+    return {
+        "total_desbloqueios_pendentes": len(desbloqueios),
+        "desbloqueios": desbloqueios
+    }
+
+@app.get("/relatorios/desbloqueios-periodo")
+def desbloqueios_por_periodo(
     data_inicio: date = Query(..., description="Data inicial (YYYY-MM-DD)"),
     data_fim: date = Query(..., description="Data final (YYYY-MM-DD)"),
     session: DBSession
 ):
-    """Lista consultas realizadas em um período específico."""
+    """Lista desbloqueios realizados em um período específico."""
     if data_inicio > data_fim:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Data inicial não pode ser maior que data final"
         )
     
-    consultas = session.exec(
-        select(ConsultaPrenatal)
-        .where(ConsultaPrenatal.data_consulta >= data_inicio)
-        .where(ConsultaPrenatal.data_consulta <= data_fim)
+    desbloqueios = session.exec(
+        select(Desbloqueio)
+        .where(Desbloqueio.data_entrada >= data_inicio)
+        .where(Desbloqueio.data_entrada <= data_fim)
     ).all()
+    
+    # Calcular estatísticas
+    total = len(desbloqueios)
+    total_concluidos = len([d for d in desbloqueios if d.status == StatusDesbloqueio.CONCLUIDO])
+    total_pendentes = len([d for d in desbloqueios if d.status == StatusDesbloqueio.PENDENTE])
+    valor_total = sum(d.valor_cobrado or 0 for d in desbloqueios if d.valor_cobrado)
     
     return {
         "periodo": {
             "data_inicio": data_inicio,
             "data_fim": data_fim
         },
-        "total_consultas": len(consultas),
-        "consultas": consultas
+        "total_desbloqueios": total,
+        "total_concluidos": total_concluidos,
+        "total_pendentes": total_pendentes,
+        "valor_total_cobrado": round(valor_total, 2),
+        "desbloqueios": desbloqueios
     }
 
-@app.get("/exames/tipo/{tipo_exame}", response_model=list[Exame])
-def exames_por_tipo(
-    tipo_exame: str,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
-    session: DBSession
-):
-    """Lista exames por tipo específico."""
-    return session.exec(
-        select(Exame)
-        .where(Exame.tipo_exame == tipo_exame)
-        .offset(skip)
-        .limit(limit)
-    ).all()
-
-@app.get("/partos/tipo/{tipo_parto}", response_model=list[Parto])
-def partos_por_tipo(
-    tipo_parto: TipoParto,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
-    session: DBSession
-):
-    """Lista partos por tipo específico."""
-    return session.exec(
-        select(Parto)
-        .where(Parto.tipo_parto == tipo_parto)
-        .offset(skip)
-        .limit(limit)
-    ).all()
-
-@app.get("/gestantes/estado-civil/{estado_civil}", response_model=list[Gestante])
-def gestantes_por_estado_civil(
-    estado_civil: EstadoCivil,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
-    session: DBSession
-):
-    """Lista gestantes por estado civil."""
-    return session.exec(
-        select(Gestante)
-        .where(Gestante.estado_civil == estado_civil)
-        .offset(skip)
-        .limit(limit)
-    ).all()
-
-@app.get("/gestantes/grupo-sanguineo/{grupo_sanguineo}", response_model=list[Gestante])
-def gestantes_por_grupo_sanguineo(
-    grupo_sanguineo: GrupoSanguineo,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
-    session: DBSession
-):
-    """Lista gestantes por grupo sanguíneo."""
-    return session.exec(
-        select(Gestante)
-        .where(Gestante.grupo_sanguineo == grupo_sanguineo)
-        .offset(skip)
-        .limit(limit)
-    ).all()
-
-#### ENDPOINTS DE RELATÓRIOS ####
-@app.get("/relatorios/gestantes-sem-parto")
-def gestantes_sem_parto(session: DBSession):
-    """Lista gestantes que ainda não tiveram parto registrado."""
-    # Buscar todas as gestantes
-    todas_gestantes = session.exec(select(Gestante)).all()
+@app.get("/relatorios/tipos-desbloqueio")
+def estatisticas_tipos_desbloqueio(session: DBSession):
+    """Estatísticas por tipo de desbloqueio."""
+    desbloqueios = session.exec(select(Desbloqueio)).all()
     
-    # Buscar todas as gestantes que já têm parto
-    gestantes_com_parto = session.exec(
-        select(Parto.id_gestante)
-    ).all()
-    
-    # Filtrar gestantes sem parto
-    gestantes_sem_parto = []
-    for gestante in todas_gestantes:
-        if gestante.id_gestante not in gestantes_com_parto:
-            gestantes_sem_parto.append(gestante)
+    tipos_counts = {}
+    for desbloqueio in desbloqueios:
+        tipo = desbloqueio.tipo_desbloqueio.value
+        tipos_counts[tipo] = tipos_counts.get(tipo, 0) + 1
     
     return {
-        "total_gestantes_sem_parto": len(gestantes_sem_parto),
-        "gestantes": gestantes_sem_parto
+        "total_desbloqueios": len(desbloqueios),
+        "por_tipo": tipos_counts
     }
 
-@app.get("/relatorios/gestantes-com-exames-pendentes")
-def gestantes_com_exames_pendentes(session: DBSession):
-    """Lista gestantes que têm exames sem resultado registrado."""
-    # Buscar exames sem resultado
-    exames_sem_resultado = session.exec(
-        select(Exame).where(Exame.resultado == None)
+@app.get("/clientes/{cliente_id}/historico")
+def historico_cliente(cliente_id: uuid.UUID, session: DBSession):
+    """Retorna o histórico completo de um cliente."""
+    cliente = session.get(Cliente, cliente_id)
+    if not cliente:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cliente não encontrado"
+        )
+    
+    # Buscar celulares do cliente
+    celulares = session.exec(
+        select(Celular).where(Celular.cliente_id == cliente_id)
     ).all()
     
-    # Agrupar por gestante
-    gestantes_exames_pendentes = {}
-    for exame in exames_sem_resultado:
-        if exame.id_gestante not in gestantes_exames_pendentes:
-            gestante = session.get(Gestante, exame.id_gestante)
-            gestantes_exames_pendentes[exame.id_gestante] = {
-                "gestante": gestante,
-                "exames_pendentes": []
-            }
-        gestantes_exames_pendentes[exame.id_gestante]["exames_pendentes"].append({
-            "id_exame": exame.id_exame,
-            "tipo_exame": exame.tipo_exame,
-            "data_exame": exame.data_exame
-        })
-    
-    return {
-        "total_gestantes_com_exames_pendentes": len(gestantes_exames_pendentes),
-        "detalhes": list(gestantes_exames_pendentes.values())
-    }
-
-@app.get("/relatorios/profissionais-mais-atendimentos")
-def profissionais_mais_atendimentos(
-    top: int = Query(10, ge=1, le=50, description="Número de profissionais a retornar"),
-    session: DBSession
-):
-    """Lista os profissionais com mais atendimentos (consultas + partos)."""
-    # Buscar todos os profissionais
-    profissionais = session.exec(select(ProfissionalSaude)).all()
-    
-    profissionais_atendimentos = []
-    
-    for profissional in profissionais:
-        # Contar consultas
-        total_consultas = session.exec(
-            select(ConsultaPrenatal)
-            .where(ConsultaPrenatal.id_profissional == profissional.id_profissional)
+    # Buscar desbloqueios de cada celular
+    historico_desbloqueios = []
+    for celular in celulares:
+        desbloqueios_celular = session.exec(
+            select(Desbloqueio).where(Desbloqueio.celular_id == celular.id_celular)
         ).all()
         
-        # Contar partos
-        total_partos = session.exec(
-            select(Parto)
-            .where(Parto.id_profissional == profissional.id_profissional)
-        ).all()
-        
-        total_atendimentos = len(total_consultas) + len(total_partos)
-        
-        profissionais_atendimentos.append({
-            "profissional": profissional,
-            "total_consultas": len(total_consultas),
-            "total_partos": len(total_partos),
-            "total_atendimentos": total_atendimentos
-        })
-    
-    # Ordenar por total de atendimentos (decrescente)
-    profissionais_atendimentos.sort(key=lambda x: x["total_atendimentos"], reverse=True)
+        for desbloqueio in desbloqueios_celular:
+            historico_desbloqueios.append({
+                "celular": {
+                    "marca": celular.marca,
+                    "modelo": celular.modelo,
+                    "imei": celular.imei
+                },
+                "desbloqueio": desbloqueio
+            })
     
     return {
-        "top": top,
-        "profissionais": profissionais_atendimentos[:top]
+        "cliente": cliente,
+        "total_celulares": len(celulares),
+        "total_desbloqueios": len(historico_desbloqueios),
+        "historico": historico_desbloqueios
     }
 
 #### ENDPOINTS DE ESTATÍSTICAS ####
-@app.get("/estatisticas/gestantes")
-def estatisticas_gestantes(session: DBSession):
-    """Retorna estatísticas sobre as gestantes cadastradas."""
-    total_gestantes = session.exec(select(Gestante)).all()
-    total = len(total_gestantes)
+@app.get("/estatisticas/gerais")
+def estatisticas_gerais(session: DBSession):
+    """Retorna estatísticas gerais do sistema."""
+    total_clientes = len(session.exec(select(Cliente)).all())
+    total_celulares = len(session.exec(select(Celular)).all())
+    total_desbloqueios = len(session.exec(select(Desbloqueio)).all())
     
-    # Contar por estado civil
-    estado_civil_counts = {}
-    for gestante in total_gestantes:
-        estado = gestante.estado_civil.value
-        estado_civil_counts[estado] = estado_civil_counts.get(estado, 0) + 1
+    desbloqueios = session.exec(select(Desbloqueio)).all()
     
-    # Contar por grupo sanguíneo
-    grupo_sanguineo_counts = {}
-    for gestante in total_gestantes:
-        grupo = gestante.grupo_sanguineo.value
-        grupo_sanguineo_counts[grupo] = grupo_sanguineo_counts.get(grupo, 0) + 1
+    # Contar por status
+    status_counts = {}
+    for desbloqueio in desbloqueios:
+        status = desbloqueio.status.value
+        status_counts[status] = status_counts.get(status, 0) + 1
     
-    return {
-        "total_gestantes": total,
-        "por_estado_civil": estado_civil_counts,
-        "por_grupo_sanguineo": grupo_sanguineo_counts
-    }
-
-@app.get("/estatisticas/partos")
-def estatisticas_partos(session: DBSession):
-    """Retorna estatísticas sobre os partos registrados."""
-    total_partos = session.exec(select(Parto)).all()
-    total = len(total_partos)
+    # Calcular valor total cobrado
+    valor_total = sum(d.valor_cobrado or 0 for d in desbloqueios if d.valor_cobrado)
     
-    # Contar por tipo de parto
-    tipo_parto_counts = {}
-    for parto in total_partos:
-        tipo = parto.tipo_parto.value
-        tipo_parto_counts[tipo] = tipo_parto_counts.get(tipo, 0) + 1
+    # Calcular média de tempo de conclusão
+    tempos_conclusao = []
+    for d in desbloqueios:
+        if d.data_saida and d.status == StatusDesbloqueio.CONCLUIDO:
+            dias = (d.data_saida - d.data_entrada).days
+            if dias > 0:
+                tempos_conclusao.append(dias)
     
-    # Contar por sexo do bebê
-    sexo_bebe_counts = {}
-    for parto in total_partos:
-        sexo = parto.sexo_bebe.value
-        sexo_bebe_counts[sexo] = sexo_bebe_counts.get(sexo, 0) + 1
-    
-    # Calcular peso médio dos bebês
-    if total > 0:
-        peso_medio = sum(parto.peso_bebe for parto in total_partos) / total
-    else:
-        peso_medio = 0
+    media_tempo = sum(tempos_conclusao) / len(tempos_conclusao) if tempos_conclusao else 0
     
     return {
-        "total_partos": total,
-        "por_tipo_parto": tipo_parto_counts,
-        "por_sexo_bebe": sexo_bebe_counts,
-        "peso_medio_bebes_kg": round(peso_medio, 2)
-    }
-
-@app.get("/gestantes/{gestante_id}/resumo")
-def resumo_gestante(gestante_id: uuid.UUID, session: DBSession):
-    """Retorna um resumo completo dos dados de uma gestante."""
-    gestante = session.get(Gestante, gestante_id)
-    if not gestante:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gestante não encontrada"
-        )
-    
-    consultas = session.exec(
-        select(ConsultaPrenatal).where(ConsultaPrenatal.id_gestante == gestante_id)
-    ).all()
-    
-    exames = session.exec(
-        select(Exame).where(Exame.id_gestante == gestante_id)
-    ).all()
-    
-    parto = session.exec(
-        select(Parto).where(Parto.id_gestante == gestante_id)
-    ).first()
-    
-    # Calcular idade da gestante
-    from datetime import datetime
-    hoje = datetime.now().date()
-    idade = hoje.year - gestante.data_nascimento.year
-    if hoje.month < gestante.data_nascimento.month or (hoje.month == gestante.data_nascimento.month and hoje.day < gestante.data_nascimento.day):
-        idade -= 1
-    
-    return {
-        "gestante": {
-            "id": gestante.id_gestante,
-            "nome": gestante.nome,
-            "idade": idade,
-            "bi": gestante.bi,
-            "telefone": gestante.telefone,
-            "grupo_sanguineo": gestante.grupo_sanguineo.value,
-            "estado_civil": gestante.estado_civil.value,
-            "data_registo": gestante.data_registo
-        },
-        "total_consultas": len(consultas),
-        "total_exames": len(exames),
-        "tem_parto": parto is not None,
-        "parto": parto,
-        "ultima_consulta": consultas[-1] if consultas else None,
-        "ultimo_exame": exames[-1] if exames else None
-    }
-
-@app.get("/profissionais/{profissional_id}/atendimentos")
-def atendimentos_profissional(profissional_id: uuid.UUID, session: DBSession):
-    """Retorna estatísticas de atendimentos de um profissional."""
-    profissional = session.get(ProfissionalSaude, profissional_id)
-    if not profissional:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profissional de saúde não encontrado"
-        )
-    
-    consultas = session.exec(
-        select(ConsultaPrenatal).where(ConsultaPrenatal.id_profissional == profissional_id)
-    ).all()
-    
-    partos = session.exec(
-        select(Parto).where(Parto.id_profissional == profissional_id)
-    ).all()
-    
-    return {
-        "profissional": {
-            "id": profissional.id_profissional,
-            "nome": profissional.nome,
-            "especialidade": profissional.especialidade
-        },
-        "total_consultas": len(consultas),
-        "total_partos": len(partos),
-        "total_atendimentos": len(consultas) + len(partos)
+        "total_clientes": total_clientes,
+        "total_celulares": total_celulares,
+        "total_desbloqueios": total_desbloqueios,
+        "desbloqueios_por_status": status_counts,
+        "valor_total_cobrado": round(valor_total, 2),
+        "media_tempo_conclusao_dias": round(media_tempo, 2) if media_tempo > 0 else 0
     }
 
 #### UTILITÁRIOS ####
 @app.get("/health")
 def health_check():
     """Endpoint de verificação de saúde da API."""
-    return {"status": "healthy", "service": "maternidade-api", "timestamp": datetime.now()}
+    return {"status": "healthy", "service": "celulares-api", "timestamp": datetime.now()}
 
 @app.get("/")
 def root():
     """Endpoint raiz com informações sobre a API."""
     return {
-        "message": "API de Gestão de Maternidade",
+        "message": "API de Desbloqueio de Celulares",
         "version": "1.0.0",
-        "description": "Sistema para gerenciamento de dados de gestantes, consultas, exames e partos",
+        "description": "Sistema para gerenciamento de clientes, celulares e serviços de desbloqueio",
         "endpoints": {
-            "gestantes": "/gestantes",
-            "profissionais": "/profissionais",
-            "consultas": "/consultas",
-            "exames": "/exames",
-            "partos": "/partos",
-            "estatisticas": ["/estatisticas/gestantes", "/estatisticas/partos"],
+            "usuarios": {
+                "POST": "/usuarios",
+                "GET": "/usuarios",
+                "GET_ID": "/usuarios/{id}",
+                "GET_USERNAME": "/usuarios/username/{username}",
+                "PATCH": "/usuarios/{id}",
+                "DELETE": "/usuarios/{id}"
+            },
+            "clientes": {
+                "POST": "/clientes",
+                "GET": "/clientes",
+                "GET_ID": "/clientes/{id}",
+                "GET_EMAIL": "/clientes/email/{email}",
+                "PATCH": "/clientes/{id}",
+                "DELETE": "/clientes/{id}"
+            },
+            "celulares": {
+                "POST": "/celulares",
+                "GET": "/celulares",
+                "GET_ID": "/celulares/{id}",
+                "GET_IMEI": "/celulares/imei/{imei}",
+                "GET_CLIENTE": "/clientes/{id}/celulares",
+                "PATCH": "/celulares/{id}",
+                "DELETE": "/celulares/{id}"
+            },
+            "desbloqueios": {
+                "POST": "/desbloqueios",
+                "GET": "/desbloqueios",
+                "GET_ID": "/desbloqueios/{id}",
+                "GET_CELULAR": "/celulares/{id}/desbloqueios",
+                "GET_STATUS": "/desbloqueios/status/{status}",
+                "GET_TIPO": "/desbloqueios/tipo/{tipo}",
+                "PATCH": "/desbloqueios/{id}",
+                "DELETE": "/desbloqueios/{id}"
+            },
             "relatorios": [
-                "/relatorios/gestantes-sem-parto",
-                "/relatorios/gestantes-com-exames-pendentes",
-                "/relatorios/profissionais-mais-atendimentos"
+                "/relatorios/desbloqueios-pendentes",
+                "/relatorios/desbloqueios-periodo",
+                "/relatorios/tipos-desbloqueio",
+                "/clientes/{id}/historico"
             ],
-            "filtros": [
-                "/profissionais/especialidade/{especialidade}",
-                "/consultas/profissional/{id}",
-                "/partos/profissional/{id}",
-                "/exames/tipo/{tipo}",
-                "/partos/tipo/{tipo}",
-                "/gestantes/estado-civil/{estado}",
-                "/gestantes/grupo-sanguineo/{grupo}"
-            ],
-            "resumos": ["/gestantes/{id}/resumo", "/profissionais/{id}/atendimentos"],
+            "estatisticas": "/estatisticas/gerais",
+            "health": "/health",
             "documentacao": "/docs"
         }
     }
