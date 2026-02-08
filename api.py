@@ -137,9 +137,9 @@ def criar_usuario(usuario: Usuario, session: DBSession):
 
 @app.get("/usuarios", response_model=list[Usuario])
 def listar_usuarios(
+    session: DBSession,
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
-    session: DBSession
+    limit: int = Query(100, ge=1, le=100)
 ):
     """Lista todos os usuários do sistema."""
     return session.exec(
@@ -261,9 +261,9 @@ def criar_cliente(cliente: Cliente, session: DBSession):
 
 @app.get("/clientes", response_model=list[Cliente])
 def listar_clientes(
+    session: DBSession,
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
-    session: DBSession
+    limit: int = Query(100, ge=1, le=100)
 ):
     """Lista todos os clientes."""
     return session.exec(
@@ -382,11 +382,11 @@ def criar_celular(celular: Celular, session: DBSession):
 
 @app.get("/celulares", response_model=list[Celular])
 def listar_celulares(
+    session: DBSession,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
     cliente_id: Optional[uuid.UUID] = None,
-    marca: Optional[str] = None,
-    session: DBSession
+    marca: Optional[str] = None
 ):
     """Lista celulares com filtros opcionais."""
     query = select(Celular)
@@ -425,10 +425,11 @@ def buscar_celular_por_imei(imei: str, session: DBSession):
 
 @app.get("/clientes/{cliente_id}/celulares", response_model=list[Celular])
 def celulares_por_cliente(
+    session: DBSession,
     cliente_id: uuid.UUID,
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
-    session: DBSession
+    limit: int = Query(100, ge=1, le=100)
+    
 ):
     """Lista todos os celulares de um cliente específico."""
     cliente = session.get(Cliente, cliente_id)
@@ -541,12 +542,13 @@ def criar_desbloqueio(desbloqueio: Desbloqueio, session: DBSession):
 
 @app.get("/desbloqueios", response_model=list[Desbloqueio])
 def listar_desbloqueios(
+    session: DBSession,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
     status: Optional[StatusDesbloqueio] = None,
     tipo_desbloqueio: Optional[TipoDesbloqueio] = None,
-    celular_id: Optional[uuid.UUID] = None,
-    session: DBSession
+    celular_id: Optional[uuid.UUID] = None
+    
 ):
     """Lista serviços de desbloqueio com filtros opcionais."""
     query = select(Desbloqueio)
@@ -575,10 +577,11 @@ def buscar_desbloqueio(desbloqueio_id: uuid.UUID, session: DBSession):
 
 @app.get("/celulares/{celular_id}/desbloqueios", response_model=list[Desbloqueio])
 def desbloqueios_por_celular(
+    session: DBSession,
     celular_id: uuid.UUID,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
-    session: DBSession
+    
 ):
     """Lista todos os desbloqueios de um celular específico."""
     celular = session.get(Celular, celular_id)
@@ -597,10 +600,11 @@ def desbloqueios_por_celular(
 
 @app.get("/desbloqueios/status/{status}", response_model=list[Desbloqueio])
 def desbloqueios_por_status(
+    session: DBSession,
     status: StatusDesbloqueio,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
-    session: DBSession
+    
 ):
     """Lista desbloqueios por status."""
     return session.exec(
@@ -612,10 +616,11 @@ def desbloqueios_por_status(
 
 @app.get("/desbloqueios/tipo/{tipo}", response_model=list[Desbloqueio])
 def desbloqueios_por_tipo(
+    session: DBSession,
     tipo: TipoDesbloqueio,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
-    session: DBSession
+   
 ):
     """Lista desbloqueios por tipo."""
     return session.exec(
@@ -687,9 +692,10 @@ def desbloqueios_pendentes(session: DBSession):
 
 @app.get("/relatorios/desbloqueios-periodo")
 def desbloqueios_por_periodo(
+    session: DBSession,
     data_inicio: date = Query(..., description="Data inicial (YYYY-MM-DD)"),
-    data_fim: date = Query(..., description="Data final (YYYY-MM-DD)"),
-    session: DBSession
+    data_fim: date = Query(..., description="Data final (YYYY-MM-DD)")
+    
 ):
     """Lista desbloqueios realizados em um período específico."""
     if data_inicio > data_fim:
